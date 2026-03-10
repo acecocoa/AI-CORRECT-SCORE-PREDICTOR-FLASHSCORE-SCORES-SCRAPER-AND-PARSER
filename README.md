@@ -1,3 +1,5 @@
+IMPORTANT: you need to scan before getting scores!
+
 Scraper is set on 320 maximum scores by match(confrontation/game) and by team.
 
 Can be upgraded to more than 320.
