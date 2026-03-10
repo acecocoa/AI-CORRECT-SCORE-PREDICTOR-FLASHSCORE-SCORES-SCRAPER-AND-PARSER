@@ -1772,7 +1772,7 @@ class FlashscoreApp(tk.Tk):
                 )
 
         # --- fully_static_method_pattern 0---
-        for title, ml, blocN in self.motif_configs0:
+        for title, ml, blocN in self.motif_configs2:
             self.write_log(self.log_teamC, f"\n===== {title} =====\n")
 
             # Appel à la méthode adaptée
