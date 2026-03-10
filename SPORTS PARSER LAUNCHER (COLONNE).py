@@ -107,7 +107,7 @@ ctk.set_default_color_theme("blue")
 
 app = ctk.CTk()
 app.title("FLASHSCORE SCRAPER LAUNCHER")
-app.geometry("425x800") # H max= x1000
+app.geometry("425x1000") # H max= x1000
 
 title = ctk.CTkLabel(
     app,
