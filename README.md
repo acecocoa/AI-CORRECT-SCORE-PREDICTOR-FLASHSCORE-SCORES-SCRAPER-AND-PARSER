@@ -1,4 +1,5 @@
 ====== INTRODUCTION ======
+
 Flashscore scores scraper/parser, with over and correct scores predictors.
 
 IMPORTANT: you will get an error message if you try to load a csv with not enough scores inside, you will just have to click "ok".
@@ -13,7 +14,8 @@ You will find:
 -Readme.
 
 ====== SCRAPERS ======
-Match selection + all leagues: europe, america, asia, africa, australia.
+
+Match selection + leagues by country or continent.
 
 Scraper is set to collect 320 scores maximum by match(confrontation/game) and by team.
 It get home and away scores and write it in column A and column C of a ".CSV" file.
