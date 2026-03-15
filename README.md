@@ -6,6 +6,8 @@ IMPORTANT: you will get an error message if you try to load a csv with not enoug
 
 Benchmark in "PREDICTOR(F4).py" => output file is "Benchmark_F4.txt".
 
+In "PREDICTOR(F4).py" you can write results from the GUI to have file for backtesting.
+
 In "PREDICTOR(F4).py": message error export to a texte file(save_error_to_csv) by clicking "ok" button.
 
 You will find:
