@@ -1,9 +1,10 @@
-Get matchs amready played with results: https://github.com/acecocoa/CSV-PREDICED-MATCHS
+Get matchs already played with results: UPDATE IN PROGRESS
 
 ====== INTRODUCTION ======
-Upgrade: 
+MAIN Upgrades: 
 -search field in scraper.
 -More accuracy in predictor.
+-Benchmark made decision in prédictor(result in the bengining of lower log)
 
 Flashscore scores scraper/parser, with over and correct scores predictors.
 
