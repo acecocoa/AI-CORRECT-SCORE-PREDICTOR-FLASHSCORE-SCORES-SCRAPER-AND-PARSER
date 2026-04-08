@@ -17,11 +17,11 @@ Benchmark in "PREDICTOR(F4).py" => output file is "Benchmark_F4.txt".
 
 In "PREDICTOR(F4).py" you can write results from the GUI to have file for backtesting.
 
-In "PREDICTOR(F4).py": message error export to a texte file(save_error_to_csv) by clicking "ok" button.
+In "PREDICTOR(F4).py": you can export message error to a texte file(save_error_to_csv) by clicking "ok" button.
 
 You will find:
 -14 CSV files with results.
--6 Python scripts: 2 predictors(main predictor(F4) + correct score and 3 scrapers.
+-6 Python scripts: 2 predictors(main predictor(F4) + DRAW AND CORECT SCORE DETECTOR.py and 3 scrapers.
 -1 sh file
 -Readme.
 
