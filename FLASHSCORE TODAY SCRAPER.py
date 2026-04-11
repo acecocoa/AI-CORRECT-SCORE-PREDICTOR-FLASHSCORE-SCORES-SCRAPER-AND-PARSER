@@ -243,7 +243,7 @@ async def click_prevus(page, gui_log=None):
             gui_log(f"[ERROR] click_prevus : {e}")
         return False
 
-async def expand_and_fetch_matches(page, time_start, time_end, gui_log=None):
+async def expand_and_fetch_matches(page, time_start, time_end, expand_leagues=False, gui_log=None):
     if page.is_closed():
         if gui_log:
             gui_log("[WARN] Page fermée – abandon expand_and_fetch_matches")
@@ -262,34 +262,39 @@ async def expand_and_fetch_matches(page, time_start, time_end, gui_log=None):
     ]
 
     try:
+        # Déploiement conditionnel des ligues
+        if expand_leagues:
+            clicked_total = 0
+            stable_rounds = 0
 
-        clicked_total = 0
-        stable_rounds = 0
-        while stable_rounds < 2:  # 2 tours sans nouveaux clics = stabilisé
-            buttons_clicked = await page.evaluate("""
-                () => {
-                    let clicked = 0;
-                    const buttons = [...document.querySelectorAll("button")];
-                    for(const btn of buttons){
-                        try {
-                            if((btn.textContent||"").toLowerCase().includes("afficher matchs")){
-                                btn.scrollIntoView({behavior:'auto', block:'center'});
-                                btn.click();
-                                clicked++;
-                            }
-                        } catch {}
+            while stable_rounds < 2:
+                buttons_clicked = await page.evaluate("""
+                    () => {
+                        let clicked = 0;
+                        const buttons = [...document.querySelectorAll("button")];
+                        for(const btn of buttons){
+                            try {
+                                if((btn.textContent||"").toLowerCase().includes("afficher matchs")){
+                                    btn.scrollIntoView({behavior:'auto', block:'center'});
+                                    btn.click();
+                                    clicked++;
+                                }
+                            } catch {}
+                        }
+                        return clicked;
                     }
-                    return clicked;
-                }
-            """)
-            clicked_total += buttons_clicked
+                """)
+                clicked_total += buttons_clicked
+
             #if gui_log:
                 #gui_log(f"🔽 Accordéons 'Afficher matchs' cliqués : {buttons_clicked}")
-            if buttons_clicked == 0:
-                stable_rounds += 1
-            else:
-                stable_rounds = 0
-            await page.wait_for_timeout(1000)  
+
+                if buttons_clicked == 0:
+                    stable_rounds += 1
+                else:
+                    stable_rounds = 0
+
+                await page.wait_for_timeout(1000)
 
         #if gui_log:
             #gui_log(f"[INFO] Total accordéons cliqués : {clicked_total}")
@@ -466,8 +471,20 @@ class FlashscoreGUI(tk.Tk):
         frame_buttons = tk.Frame(self)
         frame_buttons.pack(anchor="w", padx=10, pady=5)
 
+        # OPTIONS EVENTS
+        tk.Label(frame_top, text="EVENTS").grid(row=0, column=2, sticky="w")
+
+        self.combo_events = ttk.Combobox(
+            frame_top,
+            values=["MAIN EVENTS", "ALL EVENTS"],
+            width=20,
+            state="readonly"
+        )
+        self.combo_events.set("MAIN EVENTS")
+        self.combo_events.grid(row=0, column=3, padx=5)
+
         # Ligne 0 (boutons)
-        tk.Button(frame_buttons, text="SCAN TODAY", command=self.scan_flashscore)\
+        tk.Button(frame_buttons, text="SCAN", command=self.scan_flashscore)\
             .grid(row=0, column=0, padx=5)
 
         tk.Button(frame_buttons, text="GET SCORE(S)", command=self.run_scores)\
@@ -492,11 +509,11 @@ class FlashscoreGUI(tk.Tk):
         frame_top_list.pack(fill="x", pady=(0,3))
 
         # Colonne 0 → MATCHES FOUND
-        tk.Label(frame_top_list, text="SELECT MATCH(ES) FOUND IN LIST(NO SELECTION=ALL)", font=("Arial", 10, "bold"))\
+        tk.Label(frame_top_list, text="SELECT MATCH(ES)(NO SELECTION=ALL)", font=("Arial", 10, "bold"))\
             .grid(row=0, column=0, sticky="w")
 
         # Colonne 1 → SEARCH
-        tk.Label(frame_top_list, text="SEARCH BY NAME(2 CLICKS TO SELECT)")\
+        tk.Label(frame_top_list, text="SEARCH(2 CLICKS TO SELECT)")\
             .grid(row=0, column=1, padx=(10,2), sticky="w")  # réduire le padding pour rapprocher
 
         # Colonne 2 → champ de recherche
@@ -622,14 +639,14 @@ class FlashscoreGUI(tk.Tk):
         selected_idx = self.match_listbox.curselection()
 
         if not selected_idx:
-            self.log_msg("[INFO] Aucun match sélectionné → tous les matchs")
             selected_matches = self.scanned_matches
+            nb_selected = len(selected_matches)
+            self.log_msg(f"[⏳]Récupération: {nb_selected}")
         else:
             selected_matches = [self.scanned_matches[i] for i in selected_idx]
+            nb_selected = len(selected_matches)
+            self.log_msg(f"[⏳]Récupération: {nb_selected}")
 
-        nb_selected = len(selected_matches)
-
-        self.log_msg(f"Récupération des scores des {nb_selected} match(s) en cours.")
         self.update_idletasks()
 
         nm = int(self.combo.get())
@@ -769,6 +786,7 @@ class FlashscoreGUI(tk.Tk):
     def scan_flashscore(self):
         time_start = time_to_minutes(self.time_start.get())
         time_end = time_to_minutes(self.time_end.get())
+        expand_leagues = self.combo_events.get() == "ALL EVENTS"
 
         sport_label = self.combo_sport.get().strip()
         base_url = build_flashscore_url(sport_label)
@@ -804,6 +822,7 @@ class FlashscoreGUI(tk.Tk):
                     page,
                     time_start,
                     time_end,
+                    expand_leagues=expand_leagues,
                     gui_log=self.log_msg
                 )
 
