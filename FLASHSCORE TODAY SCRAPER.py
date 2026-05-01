@@ -433,7 +433,7 @@ class FlashscoreGUI(tk.Tk):
         self.combo_mode.set("1 - TEAM") 
         self.combo_mode.grid(row=0, column=1, padx=5)
 
-        tk.Label(frame_scores, text="SCORE AMOUNT").grid(row=0, column=2, sticky="w")
+        tk.Label(frame_scores, text="SCORE SERIE AMOUNT").grid(row=0, column=2, sticky="w")
         self.combo = ttk.Combobox(frame_scores, values=[str(i) for i in range(40,641,40)], width=10, state="readonly")
         self.combo.set("320")
         self.combo.grid(row=0, column=3, padx=5)
@@ -548,14 +548,16 @@ class FlashscoreGUI(tk.Tk):
 
         startup_msgs = [
             "STEP 1:",
-            "1.SELECT TIME(FROM & TO)",
-            "2.PRESS SCAN",
+            "1.SELECT SPORT",
+            "2.SELECT TIME(FROM & TO)",
+            "3.SELECT EVENTS",
+            "4.PRESS SCAN",
             "",
             "STEP 2:",
-            "3.MAKE (MULTI)SELECTION IN THE LIST OR NOT TO GET ALL SCORES YOU SCANNED",
-            "4.SELECT SCORE AMOUNT(320 best accuracy)",
-            "5.SELECT EVENTS",
-            "6.PRESS GET SCORE(S)",
+            "5.MAKE (MULTI)SELECTION IN THE LIST(OR NOT) TO GET SCORES YOU SCANNED",
+            "6.SELECT SCORE SERIE AMOUNT(320 best accuracy)",
+            "7.PRESS GET SCORE(S) AND WAIT TILL COMPLETE",
+            "",
             "ALL EVENTS= all available for betting",
             "PRESS DELETE LOGS to remove this message"
         ]
