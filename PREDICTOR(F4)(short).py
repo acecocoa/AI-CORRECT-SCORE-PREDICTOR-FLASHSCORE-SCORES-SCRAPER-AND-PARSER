@@ -884,18 +884,27 @@ class FlashscoreApp(tk.Tk):
         if cr2_predictions: return cr2_predictions[-1]
         return list(results.values())[0]['value']
    
-    def display_recent_averages(self, series, log_widget):
+    def display_recent_averages(self, series, log_widget=None):
         series_data = series[:-1]
         lengths = [10, 15, 20]
 
-        avg = []
+        results = {}
+
         for L in lengths:
             if len(series_data) >= L:
-                avg.append(f"Last{L}={sum(series_data[-L:])/L:.2f}")
+                avg_val = sum(series_data[-L:]) / L
+                results[f"last{L}"] = avg_val
             else:
-                avg.append(f"Last{L}=N/A")
+                results[f"last{L}"] = None
 
-        self.write_log(log_widget, f"\n📊 LAST MEANS : {' | '.join(avg)}\n")
+        if log_widget:
+            avg_str = [
+                f"Last{L}={results[f'last{L}']:.2f}" if results[f"last{L}"] is not None else f"Last{L}=N/A"
+                for L in lengths
+            ]
+            self.write_log(log_widget, f"\n📊 LAST MEANS : {' | '.join(avg_str)}\n")
+
+        return results
 
     def linear_rebound_prediction(self, series, window=6):
         series = series[:-1]
@@ -1472,6 +1481,82 @@ class FlashscoreApp(tk.Tk):
             results[i]["probability_%"] = float(f"{probs[i] * 100:.2f}")
 
         return results
+
+    def optimal_score_prediction(self, series):
+
+        # --- 1. SOCLE PRINCIPAL ---
+        scores = self.prediction_scores(series)
+        if not scores:
+            return 0
+
+        base = scores["prediction"]
+        adjusted = scores["adjusted"]
+
+        # --- 2. SIGNAL FORT (distance model) ---
+        results = self.predict_proba(series, window=5)
+
+        dist_pred = None
+        dist_conf = 0
+
+        if results:
+            best_r = max(results, key=lambda x: x["probability_%"])
+            dist_pred = best_r["value"]
+            dist_conf = best_r["probability_%"] / 100
+
+        if dist_conf > 0.85:
+            return round(dist_pred, 2)
+
+        # --- 3. MODELES SECONDAIRES ---
+        markov = self.markov_weighted_prediction(series)["prediction"]
+        attractor = self.local_attractor_prediction(series)["prediction"]
+        means = self.display_recent_averages(series)
+        mean_val = (
+            (means["last10"] or 0) * 0.5 +
+            (means["last15"] or 0) * 0.3 +
+            (means["last20"] or 0) * 0.2
+        )
+
+        # --- 4. COHERENCE (filtrage bruit) ---
+        secondary_avg = (markov + attractor + mean_val) / 3
+
+        # si trop éloigné du noyau → on réduit son impact
+        if abs(secondary_avg - adjusted) > 2:
+            secondary_weight = 0.1
+        else:
+            secondary_weight = 0.3
+
+        # --- 5. FUSION FINALE ---
+        final = (
+            0.6 * adjusted +         # 🔥 coeur réel
+            0.25 * base +
+            secondary_weight * secondary_avg
+        )
+
+        return round(max(0, final), 2)
+
+    def optimal_score_aggressive(self, series):
+
+        scores = self.prediction_scores(series)
+        if not scores:
+            return 0
+
+        adjusted = scores["adjusted"]
+
+        results = self.predict_proba(series, window=5)
+
+        dist_pred = None
+        dist_conf = 0
+
+        if results:
+            best_r = max(results, key=lambda x: x["probability_%"])
+            dist_pred = best_r["value"]
+            dist_conf = best_r["probability_%"] / 100
+
+        if dist_conf > 0.75:
+            return round(dist_pred, 2)
+
+        # 🔥 sinon on suit le noyau pur
+        return round(adjusted, 2)
 
 ################################
 #Créer une 2e version pour un 2e résultat dans "analyze_blocks_and_predict"
@@ -2391,6 +2476,44 @@ class FlashscoreApp(tk.Tk):
 
         return self.prediction_scores_single(max(0, min(score, 1000)))
 
+    def predict_team_score(self, meta_inputs):
+        proba = meta_inputs["predict_proba"]          # dict {score: prob}
+        pred_scores = meta_inputs["prediction_scores"] # dict {score: score}
+        pattern = meta_inputs["pattern"]              # list of candidates
+        attractor = meta_inputs["attractor"]          # float
+
+        # 1. Cas fort : proba dominante
+        best_proba_score, best_proba = max(proba.items(), key=lambda x: x[1])
+        if best_proba >= 0.95:
+            return best_proba_score
+
+        # 2. Construction des candidats
+        candidates = set(proba.keys()) | set(pred_scores.keys()) | set(pattern)
+
+        scores = {}
+
+        for s in candidates:
+            score = 0
+
+            # poids proba
+            score += proba.get(s, 0) * 2
+
+            # poids fréquence
+            score += pred_scores.get(s, 0) * 1.5
+
+            # bonus pattern
+            if s in pattern:
+                score += 1.0
+
+            # proximité attractor
+            if attractor is not None:
+                score += max(0, 1 - abs(s - attractor))
+
+            scores[s] = score
+
+        # 3. sélection finale
+        return max(scores.items(), key=lambda x: x[1])[0]
+
 #################### 
     def _build_ui(self):
         top=ttk.Frame(self);top.pack(fill="x",padx=8,pady=6);top.columnconfigure(1,weight=1)
@@ -2711,6 +2834,11 @@ class FlashscoreApp(tk.Tk):
 
         resultA, resultC = self.fully_static_method_with_patterns(seriesA, seriesC)
 
+        # Récupération des scores avec fallback à 0
+
+        teamA_score = getattr(self, "entry_teamA_score").get().strip()
+        teamC_score = getattr(self, "entry_teamC_score").get().strip()
+
         with open(filepath, "a", encoding="utf-8") as f:
 
             def log(x=""):
@@ -2724,10 +2852,16 @@ class FlashscoreApp(tk.Tk):
             log("BENCHMARK MIRROR RUN_PREDICTION")
             log("=" * 60 + "\n")
 
-            # ========================= CLEAR LOGIC REMOVED (UI ONLY)
+
+            def write_team_header(label, score):
+                write(log, f"\n================ TEAM {label} ================")
+                write(log, f"Score TEAM {label} = {score}\n")
 
             # ========================= PROBA PATTERN
-            def write_predict_proba(series):
+            def write_predict_proba(series, label, score):
+
+                write_team_header(label, score)
+                
                 write(log, "📊 PROBABILITY PATTERN (DISTANCE MODEL)\n")
 
                 results = self.predict_proba(series, window=5)
@@ -2999,7 +3133,9 @@ class FlashscoreApp(tk.Tk):
                     write(log, f"\n🎯 BEST → ⚽ {ps['prediction']} | adjusted={ps['adjusted']:.2f}\n")
 
             # ========================= EXECUTION
-            write_predict_proba(seriesA)
+            # Pour l’équipe A
+            write_predict_proba(seriesA, "A", teamA_score)
+
             write_pattern_and_version(seriesA)
 
             write_motif_table("MOTIF ENGINE COMPLETE - A", self.motif_engine_complete2(seriesA))
@@ -3011,7 +3147,7 @@ class FlashscoreApp(tk.Tk):
 
             log("\n" + "-" * 50 + "\n")
 
-            write_predict_proba(seriesC)
+            write_predict_proba(seriesC, "C", teamC_score)
             write_pattern_and_version(seriesC)
 
             write_motif_table("MOTIF ENGINE COMPLETE - C", self.motif_engine_complete2(seriesC))
@@ -3037,8 +3173,58 @@ class FlashscoreApp(tk.Tk):
 
         resultA,resultC=self.fully_static_method_with_patterns(seriesA,seriesC)
 
+        # ================================
+        # 🎯 OPTIMAL DECISION MODELS
+        # ================================
+
+        def write_optimal_models(series, log):
+
+            self.write_log(log, "📊 OPTIMAL DECISION MODELS\n")
+
+            # récupération du BEST pour comparaison
+            best = None
+            try:
+                ps = self.prediction_scores(series)
+                if ps:
+                    best = ps.get("prediction")
+            except:
+                pass
+
+            # --- optimal_score_prediction ---
+            try:
+                opt = self.optimal_score_prediction(series)
+                diff = abs(opt - best) if best is not None else None
+
+                self.write_log(
+                    log,
+                    f"🎯 Opt. → ⚽ {opt:.2f}" +
+                    (f" | Δ BEST: {diff:.2f}" if diff is not None else "") +
+                    "\n"
+                )
+            except Exception as e:
+                self.write_log(log, f"⚠️ Opt ERROR: {e}\n")
+
+            # --- optimal_score_aggressive ---
+            try:
+                agg = self.optimal_score_aggressive(series)
+                diff = abs(agg - best) if best is not None else None
+
+                self.write_log(
+                    log,
+                    f"\n🎯 Agg. → ⚽ {agg:.2f}" +
+                    (f" | Δ BEST: {diff:.2f}" if diff is not None else "") +
+                    "\n"
+                )
+            except Exception as e:
+                self.write_log(log, f"⚠️ Agg ERROR: {e}\n")
+
+
+        # 👉 affichage pour chaque équipe
+        write_optimal_models(seriesA, self.log_teamA)
+        write_optimal_models(seriesC, self.log_teamC)
+            
         def write_predict_proba(series, log):
-            self.write_log(log, "📊 PROBABILITY PATTERN (DISTANCE MODEL)\n")
+            self.write_log(log, "\n📊 PROBABILITY PATTERN (DISTANCE MODEL)\n")
 
             results = self.predict_proba(series, window=5)
 
